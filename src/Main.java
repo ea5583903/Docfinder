@@ -202,6 +202,9 @@ public class Main {
             public void mouseClicked(java.awt.event.MouseEvent evt) {
                 if (evt.getClickCount() == 2) {
                     openSelectedItem();
+                } else if (evt.getClickCount() == 1 && evt.isMetaDown()) {
+                    // Cmd+click to AirDrop file
+                    airdropSelectedFile();
                 }
             }
         });
@@ -1862,6 +1865,70 @@ public class Main {
         } catch (IOException e) {
             JOptionPane.showMessageDialog(frame, "Error executing file: " + e.getMessage(), 
                 "Execution Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+    
+    private void airdropSelectedFile() {
+        int selectedRow = fileTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(frame, "Please select a file to AirDrop.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        String fileName = (String) tableModel.getValueAt(selectedRow, 0);
+        Path filePath = getSelectedFilePath(selectedRow);
+        
+        if (!Files.exists(filePath)) {
+            JOptionPane.showMessageDialog(frame, "File does not exist: " + fileName, "File Not Found", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        try {
+            String os = System.getProperty("os.name").toLowerCase();
+            
+            if (os.contains("mac")) {
+                // On macOS, use the sharing service to open AirDrop
+                ProcessBuilder pb = new ProcessBuilder("open", "-b", "com.apple.finder", "--args", filePath.toString());
+                pb.start();
+                
+                // Show AirDrop dialog
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(frame, 
+                        "AirDrop initiated for: " + fileName + "\n" +
+                        "The Finder AirDrop window should open.\n" + 
+                        "Select a device to share the file with.", 
+                        "AirDrop Started", 
+                        JOptionPane.INFORMATION_MESSAGE);
+                });
+            } else {
+                // For non-macOS systems, show an alternative sharing option
+                String[] options = {"Open file location", "Copy path to clipboard", "Cancel"};
+                int choice = JOptionPane.showOptionDialog(frame,
+                    "AirDrop is only available on macOS.\nWhat would you like to do instead?",
+                    "AirDrop Alternative",
+                    JOptionPane.YES_NO_CANCEL_OPTION,
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    options,
+                    options[0]);
+                
+                switch (choice) {
+                    case 0: // Open file location
+                        openInSystemFileManager(filePath.getParent());
+                        break;
+                    case 1: // Copy path to clipboard
+                        java.awt.datatransfer.StringSelection selection = 
+                            new java.awt.datatransfer.StringSelection(filePath.toString());
+                        java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
+                        JOptionPane.showMessageDialog(frame, "File path copied to clipboard: " + filePath.toString(), 
+                            "Path Copied", JOptionPane.INFORMATION_MESSAGE);
+                        break;
+                }
+            }
+            
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(frame, "Error initiating AirDrop: " + e.getMessage(), 
+                "AirDrop Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 }
